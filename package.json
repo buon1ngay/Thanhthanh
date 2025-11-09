@@ -1,6 +1,0 @@
-"name": "my-chat-api",
-  "version": "1.0.0",
-  "description": "API cho chatbot",
-  "dependencies": {
-    "node-fetch": "^2.6.1"
-  }
