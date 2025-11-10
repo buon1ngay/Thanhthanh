@@ -20,7 +20,6 @@ module.exports = async (req, res) => {
     // Parse request body
     let body;
     
-    // Vercel tự động parse JSON, nhưng phòng trường hợp không parse được
     if (typeof req.body === 'string') {
       try {
         body = JSON.parse(req.body);
@@ -55,8 +54,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Gọi Gemini API
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+    // Gọi Gemini API với model MỚI
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
@@ -106,7 +105,7 @@ module.exports = async (req, res) => {
           finish_reason: 'stop',
           index: 0
         }],
-        model: 'gemini-pro',
+        model: 'gemini-1.5-flash',
         usage: {
           prompt_tokens: 0,
           completion_tokens: 0,
