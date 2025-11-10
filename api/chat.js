@@ -1,12 +1,7 @@
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
-  // Chỉ cho phép POST request
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Chỉ chấp nhận POST request' });
-  }
-
-  // Cho phép CORS
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,66 +11,97 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Chỉ cho phép POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Chỉ chấp nhận POST request' });
+  }
+
   try {
+    // Parse request body
+    let body;
+    
+    // Vercel tự động parse JSON, nhưng phòng trường hợp không parse được
+    if (typeof req.body === 'string') {
+      try {
+        body = JSON.parse(req.body);
+      } catch (e) {
+        return res.status(400).json({ 
+          error: 'Invalid JSON format',
+          details: 'Request body phải là JSON hợp lệ'
+        });
+      }
+    } else {
+      body = req.body;
+    }
+
     // Lấy dữ liệu từ request
-    const { prompt, temperature = 0.2, top_p = 0.2, n = 1 } = req.body;
+    const { prompt, temperature = 0.2, top_p = 0.2, n = 1 } = body || {};
 
     // Kiểm tra prompt
-    if (!prompt || prompt.trim() === '') {
+    if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
       return res.status(400).json({ 
-        error: 'Prompt không được để trống' 
+        error: 'Prompt không hợp lệ',
+        details: 'Prompt phải là chuỗi ký tự và không được rỗng'
       });
     }
 
-    // Lấy API key từ biến môi trường
+    // Lấy API key
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     
     if (!GEMINI_API_KEY) {
       return res.status(500).json({ 
-        error: 'API key chưa được cấu hình' 
+        error: 'API key chưa được cấu hình',
+        details: 'Vui lòng thêm GEMINI_API_KEY vào Environment Variables'
       });
     }
 
-    // Gọi API Google Gemini
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: temperature,
-            topP: top_p,
-            maxOutputTokens: 2048,
-          }
-        })
-      }
-    );
+    // Gọi Gemini API
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const geminiResponse = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: parseFloat(temperature),
+          topP: parseFloat(top_p),
+          maxOutputTokens: 2048,
+        }
+      })
+    });
 
-    const data = await response.json();
+    const geminiData = await geminiResponse.json();
 
     // Kiểm tra lỗi từ Gemini
-    if (data.error) {
-      console.error('Gemini API Error:', data.error);
+    if (geminiData.error) {
+      console.error('Gemini API Error:', geminiData.error);
       return res.status(500).json({ 
         error: 'Lỗi từ Gemini API',
-        details: data.error.message 
+        details: geminiData.error.message || 'Unknown error'
       });
     }
 
     // Chuyển đổi format về giống OpenAI
-    if (data.candidates && data.candidates[0]) {
+    if (geminiData.candidates && geminiData.candidates[0]) {
+      const content = geminiData.candidates[0].content?.parts?.[0]?.text;
+      
+      if (!content) {
+        return res.status(500).json({ 
+          error: 'Không nhận được nội dung từ AI' 
+        });
+      }
+
       const aiResponse = {
         choices: [{
           message: {
-            content: data.candidates[0].content.parts[0].text
+            content: content
           },
           finish_reason: 'stop',
           index: 0
@@ -91,7 +117,8 @@ module.exports = async (req, res) => {
       return res.status(200).json(aiResponse);
     } else {
       return res.status(500).json({ 
-        error: 'Không nhận được phản hồi từ AI' 
+        error: 'Không nhận được phản hồi từ AI',
+        details: 'Gemini không trả về candidates'
       });
     }
 
@@ -99,7 +126,7 @@ module.exports = async (req, res) => {
     console.error('Server Error:', error);
     return res.status(500).json({ 
       error: 'Lỗi server',
-      details: error.message 
+      details: error.message || 'Unknown error'
     });
   }
 };
