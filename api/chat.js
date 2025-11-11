@@ -25,8 +25,7 @@ module.exports = async (req, res) => {
         body = JSON.parse(req.body);
       } catch (e) {
         return res.status(400).json({ 
-          error: 'Invalid JSON format',
-          details: 'Request body phải là JSON hợp lệ'
+          error: 'Invalid JSON format'
         });
       }
     } else {
@@ -34,13 +33,12 @@ module.exports = async (req, res) => {
     }
 
     // Lấy dữ liệu từ request
-    const { prompt, temperature = 0.2, top_p = 0.2, n = 1 } = body || {};
+    const { prompt, temperature = 0.7, top_p = 0.9 } = body || {};
 
     // Kiểm tra prompt
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
       return res.status(400).json({ 
-        error: 'Prompt không hợp lệ',
-        details: 'Prompt phải là chuỗi ký tự và không được rỗng'
+        error: 'Prompt không hợp lệ'
       });
     }
 
@@ -49,13 +47,12 @@ module.exports = async (req, res) => {
     
     if (!GEMINI_API_KEY) {
       return res.status(500).json({ 
-        error: 'API key chưa được cấu hình',
-        details: 'Vui lòng thêm GEMINI_API_KEY vào Environment Variables'
+        error: 'API key chưa được cấu hình'
       });
     }
 
-    // Gọi Gemini API với model MỚI
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // Gọi Gemini API với model ĐÚNG
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
@@ -71,7 +68,7 @@ module.exports = async (req, res) => {
         generationConfig: {
           temperature: parseFloat(temperature),
           topP: parseFloat(top_p),
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
         }
       })
     });
@@ -83,7 +80,7 @@ module.exports = async (req, res) => {
       console.error('Gemini API Error:', geminiData.error);
       return res.status(500).json({ 
         error: 'Lỗi từ Gemini API',
-        details: geminiData.error.message || 'Unknown error'
+        details: geminiData.error.message
       });
     }
 
@@ -105,7 +102,7 @@ module.exports = async (req, res) => {
           finish_reason: 'stop',
           index: 0
         }],
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         usage: {
           prompt_tokens: 0,
           completion_tokens: 0,
@@ -116,8 +113,7 @@ module.exports = async (req, res) => {
       return res.status(200).json(aiResponse);
     } else {
       return res.status(500).json({ 
-        error: 'Không nhận được phản hồi từ AI',
-        details: 'Gemini không trả về candidates'
+        error: 'Không nhận được phản hồi từ AI'
       });
     }
 
@@ -125,7 +121,7 @@ module.exports = async (req, res) => {
     console.error('Server Error:', error);
     return res.status(500).json({ 
       error: 'Lỗi server',
-      details: error.message || 'Unknown error'
+      details: error.message
     });
   }
 };
